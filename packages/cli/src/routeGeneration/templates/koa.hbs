@@ -95,57 +95,24 @@ export function RegisterRoutes(router: KoaRouter) {
 
   {{#if useSecurity}}
   function authenticateMiddleware(security: TsoaRoute.Security[] = []) {
-      return async (context: any, next: any) => {
-          let responded = 0;
-          let success = false;
-
-          const succeed = async (user: any) => {
-              if (!success) {
-                  success = true;
-                  responded++;
-                  context.request['user'] = user;
-                  await next();
-              }
-          };
-
-          // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-
-          const fail = async (error: any) => {
-              responded++;
-              if (responded == security.length && !success) {
-                  // this is an authentication error
-                  context.status = error.status || 401;
-                  context.throw(context.status, error.message, error);
-              } else if (success) {
-                  // the authentication was a success but arriving here means the controller
-                  // probably threw an error that we caught as well
-                  // so just pass it on
-                  throw error;
-              }
-          };
-
-          // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-
-          for (const secMethod of security) {
-              if (Object.keys(secMethod).length > 1) {
-                  let promises: Promise<any>[] = [];
-
-                  for (const name in secMethod) {
-                      promises.push(koaAuthentication(context.request, name, secMethod[name]));
-                  }
-
-                  return Promise.all(promises)
-                      .then((users) => succeed(users[0]))
-                      .catch(fail);
-              } else {
-                  for (const name in secMethod) {
-                      return koaAuthentication(context.request, name, secMethod[name])
-                          .then(succeed)
-                          .catch(fail);
-                  }
-              }
+    return (request: any, _response: any, next: any) =>
+      new Promise((resolve, reject) => {
+        const promises: Promise<any>[] = [];
+        for (const secMethod of security) {
+          for (const name in secMethod) {
+            promises.push(koaAuthentication(request, name, secMethod[name]));
           }
-      }
+        }
+        Promise.all(promises)
+          .then(resolve)
+          .catch(reject);
+      }).then((results: any) => {
+        request['user'] = results.shift();
+        next();
+      }).catch((error) => {
+        error.status = error.status || 401;
+        next(error)
+      });
   }
   {{/if}}
 
