@@ -107,52 +107,24 @@ export function RegisterRoutes(server: any) {
 
     {{#if useSecurity}}
     function authenticateMiddleware(security: TsoaRoute.Security[] = []) {
-        return (request: any, h: any) => {
-            let responded = 0;
-            let success = false;
-
-            const succeed = function(user: any) {
-                if (!success) {
-                    success = true;
-                    responded++;
-                    request['user'] = user;
-                }
-                return user;
-            };
-
-            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-
-            const fail = function(error: any) {
-                responded++;
-                if (responded == security.length && !success) {
-                    h.response(error).code(error.status || 401);
-                }
-                return error;
-            };
-
-            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-
-            for (const secMethod of security) {
-                if (Object.keys(secMethod).length > 1) {
-                    let promises: Promise<any>[] = [];
-
-                    for (const name in secMethod) {
-                        promises.push(hapiAuthentication(request, name, secMethod[name]));
-                    }
-
-                    return Promise.all(promises)
-                        .then((users) => { succeed(users[0]); })
-                        .catch(fail);
-                } else {
-                    for (const name in secMethod) {
-                        return hapiAuthentication(request, name, secMethod[name])
-                            .then(succeed)
-                            .catch(fail);
-                    }
-                }
+      return (request: any, _response: any, next: any) =>
+        new Promise((resolve, reject) => {
+          const promises: Promise<any>[] = [];
+          for (const secMethod of security) {
+            for (const name in secMethod) {
+              promises.push(hapiAuthentication(request, name, secMethod[name]));
             }
-            return null;
-        }
+          }
+          Promise.all(promises)
+            .then(resolve)
+            .catch(reject);
+        }).then((results: any) => {
+          request['user'] = results.shift();
+          next();
+        }).catch((error) => {
+          error.status = error.status || 401;
+          next(error)
+        });
     }
     {{/if}}
 
